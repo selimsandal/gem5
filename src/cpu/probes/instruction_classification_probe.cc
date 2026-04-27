@@ -173,7 +173,7 @@ InstructionClassificationProbe::ClassificationStats::ClassificationStats(
     threads.reserve(num_threads);
     for (ThreadID tid = 0; tid < num_threads; ++tid)
         threads.emplace_back(
-            std::make_unique<PerThreadStats>(this, tid, simSeconds));
+            std::make_unique<PerThreadStats>(parent, tid, simSeconds));
 }
 
 InstructionClassificationProbe::ClassificationStats::PerThreadStats &
