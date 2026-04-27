@@ -33,6 +33,7 @@
 #include "cpu/o3/dyn_inst.hh"
 #include "cpu/o3/limits.hh"
 #include "debug/InstClassification.hh"
+#include "sim/core.hh"
 
 namespace gem5
 {
@@ -53,24 +54,126 @@ InstructionClassificationProbe::ThreadCommitListener::notify(
 }
 
 InstructionClassificationProbe::ClassificationStats::PerThreadStats::
-PerThreadStats(statistics::Group *parent, ThreadID tid)
+PerThreadStats(statistics::Group *parent, ThreadID tid,
+               statistics::Value &sim_seconds)
     : statistics::Group(parent, csprintf("thread%i", tid).c_str()),
       ADD_STAT(totalRetired, statistics::units::Count::get(),
                "Retired instructions"),
+      ADD_STAT(normalRetired, statistics::units::Count::get(),
+               "Retired normal instructions"),
       ADD_STAT(longLatencyRetired, statistics::units::Count::get(),
                "Retired long-latency instructions"),
       ADD_STAT(expensiveRetired, statistics::units::Count::get(),
-               "Retired expensive instructions")
+               "Retired expensive instructions"),
+      ADD_STAT(expensiveRetiredPctOfTotal, statistics::units::Ratio::get(),
+               "Expensive retired instructions as a percent of all retired "
+               "instructions"),
+      ADD_STAT(expensiveRetiredPctOfOthers, statistics::units::Ratio::get(),
+               "Expensive retired instructions as a percent of non-expensive "
+               "retired instructions"),
+      ADD_STAT(totalExecutionCycles, statistics::units::Cycle::get(),
+               "Accumulated issue-to-complete execution cycles"),
+      ADD_STAT(normalExecutionCycles, statistics::units::Cycle::get(),
+               "Accumulated issue-to-complete cycles for normal instructions"),
+      ADD_STAT(longLatencyExecutionCycles, statistics::units::Cycle::get(),
+               "Accumulated issue-to-complete cycles for long-latency "
+               "instructions"),
+      ADD_STAT(expensiveExecutionCycles, statistics::units::Cycle::get(),
+               "Accumulated issue-to-complete cycles for expensive "
+               "instructions"),
+      ADD_STAT(otherExecutionCycles, statistics::units::Cycle::get(),
+               "Accumulated issue-to-complete cycles for non-expensive "
+               "instructions"),
+      ADD_STAT(expensiveExecutionCyclePctOfTotal,
+               statistics::units::Ratio::get(),
+               "Expensive issue-to-complete cycles as a percent of all "
+               "issue-to-complete cycles"),
+      ADD_STAT(expensiveExecutionCyclePctOfOthers,
+               statistics::units::Ratio::get(),
+               "Expensive issue-to-complete cycles as a percent of "
+               "non-expensive issue-to-complete cycles"),
+      ADD_STAT(totalEstimatedEnergy, statistics::units::Joule::get(),
+               "Estimated instruction energy from configured energy-per-cycle "
+               "coefficients"),
+      ADD_STAT(normalEstimatedEnergy, statistics::units::Joule::get(),
+               "Estimated normal-instruction energy from configured "
+               "energy-per-cycle coefficients"),
+      ADD_STAT(longLatencyEstimatedEnergy, statistics::units::Joule::get(),
+               "Estimated long-latency-instruction energy from configured "
+               "energy-per-cycle coefficients"),
+      ADD_STAT(expensiveEstimatedEnergy, statistics::units::Joule::get(),
+               "Estimated expensive-instruction energy from configured "
+               "energy-per-cycle coefficients"),
+      ADD_STAT(otherEstimatedEnergy, statistics::units::Joule::get(),
+               "Estimated non-expensive-instruction energy from configured "
+               "energy-per-cycle coefficients"),
+      ADD_STAT(expensiveEstimatedEnergyPctOfTotal,
+               statistics::units::Ratio::get(),
+               "Estimated expensive-instruction energy as a percent of all "
+               "estimated instruction energy"),
+      ADD_STAT(expensiveEstimatedEnergyPctOfOthers,
+               statistics::units::Ratio::get(),
+               "Estimated expensive-instruction energy as a percent of "
+               "non-expensive estimated instruction energy"),
+      ADD_STAT(totalEstimatedAveragePower, statistics::units::Watt::get(),
+               "Estimated average instruction power from configured "
+               "energy-per-cycle coefficients"),
+      ADD_STAT(normalEstimatedAveragePower, statistics::units::Watt::get(),
+               "Estimated average normal-instruction power from configured "
+               "energy-per-cycle coefficients"),
+      ADD_STAT(longLatencyEstimatedAveragePower,
+               statistics::units::Watt::get(),
+               "Estimated average long-latency-instruction power from "
+               "configured energy-per-cycle coefficients"),
+      ADD_STAT(expensiveEstimatedAveragePower, statistics::units::Watt::get(),
+               "Estimated average expensive-instruction power from configured "
+               "energy-per-cycle coefficients")
 {
+    const statistics::Temp pct = statistics::constant(100.0);
+
+    otherExecutionCycles = normalExecutionCycles + longLatencyExecutionCycles;
+    otherEstimatedEnergy = normalEstimatedEnergy + longLatencyEstimatedEnergy;
+
+    expensiveRetiredPctOfTotal =
+        expensiveRetired / totalRetired * pct;
+    expensiveRetiredPctOfOthers =
+        expensiveRetired / (normalRetired + longLatencyRetired) * pct;
+    expensiveExecutionCyclePctOfTotal =
+        expensiveExecutionCycles / totalExecutionCycles * pct;
+    expensiveExecutionCyclePctOfOthers =
+        expensiveExecutionCycles / otherExecutionCycles * pct;
+    expensiveEstimatedEnergyPctOfTotal =
+        expensiveEstimatedEnergy / totalEstimatedEnergy * pct;
+    expensiveEstimatedEnergyPctOfOthers =
+        expensiveEstimatedEnergy / otherEstimatedEnergy * pct;
+
+    totalEstimatedAveragePower = totalEstimatedEnergy / sim_seconds;
+    normalEstimatedAveragePower = normalEstimatedEnergy / sim_seconds;
+    longLatencyEstimatedAveragePower =
+        longLatencyEstimatedEnergy / sim_seconds;
+    expensiveEstimatedAveragePower =
+        expensiveEstimatedEnergy / sim_seconds;
+
+    expensiveRetiredPctOfTotal.precision(2);
+    expensiveRetiredPctOfOthers.precision(2);
+    expensiveExecutionCyclePctOfTotal.precision(2);
+    expensiveExecutionCyclePctOfOthers.precision(2);
+    expensiveEstimatedEnergyPctOfTotal.precision(2);
+    expensiveEstimatedEnergyPctOfOthers.precision(2);
 }
 
 InstructionClassificationProbe::ClassificationStats::ClassificationStats(
         InstructionClassificationProbe *parent, ThreadID num_threads)
-    : statistics::Group(parent)
+    : statistics::Group(parent),
+      ADD_STAT(simSeconds, statistics::units::Second::get(),
+               "Simulated seconds at stats dump")
 {
+    simSeconds.method(parent, &InstructionClassificationProbe::simSeconds);
+
     threads.reserve(num_threads);
     for (ThreadID tid = 0; tid < num_threads; ++tid)
-        threads.emplace_back(std::make_unique<PerThreadStats>(this, tid));
+        threads.emplace_back(
+            std::make_unique<PerThreadStats>(this, tid, simSeconds));
 }
 
 InstructionClassificationProbe::ClassificationStats::PerThreadStats &
@@ -84,6 +187,9 @@ InstructionClassificationProbe::InstructionClassificationProbe(
     : SimObject(params),
       cpu(params.cpu),
       numThreads(cpu ? cpu->numThreads : 0),
+      normalEnergyPerCycle(params.normal_energy_per_cycle),
+      longLatencyEnergyPerCycle(params.long_latency_energy_per_cycle),
+      expensiveEnergyPerCycle(params.expensive_energy_per_cycle),
       stats(this, numThreads)
 {
     fatal_if(cpu == nullptr, "%s requires a BaseO3CPU\n", name());
@@ -133,16 +239,30 @@ InstructionClassificationProbe::handleCommit(
 
     auto &thread_stats = stats.thread(tid);
 
-    ++thread_stats.totalRetired;
+    const Classification classification = classify(inst);
+    const uint64_t cycles = executionCycles(inst);
+    const double energy = static_cast<double>(cycles) *
+        energyPerCycle(classification);
 
-    switch (classify(inst)) {
+    ++thread_stats.totalRetired;
+    thread_stats.totalExecutionCycles += cycles;
+    thread_stats.totalEstimatedEnergy += energy;
+
+    switch (classification) {
       case Classification::Normal:
+        ++thread_stats.normalRetired;
+        thread_stats.normalExecutionCycles += cycles;
+        thread_stats.normalEstimatedEnergy += energy;
         break;
       case Classification::LongLatency:
         ++thread_stats.longLatencyRetired;
+        thread_stats.longLatencyExecutionCycles += cycles;
+        thread_stats.longLatencyEstimatedEnergy += energy;
         break;
       case Classification::Expensive:
         ++thread_stats.expensiveRetired;
+        thread_stats.expensiveExecutionCycles += cycles;
+        thread_stats.expensiveEstimatedEnergy += energy;
         break;
     }
 }
@@ -157,6 +277,42 @@ InstructionClassificationProbe::classify(const o3::DynInstPtr &inst) const
      * FP square roots (expensive).
      */
     return Classification::Normal;
+}
+
+uint64_t
+InstructionClassificationProbe::executionCycles(
+        const o3::DynInstPtr &inst) const
+{
+    if (inst->issueTick < 0 || inst->completeTick < 0 ||
+        inst->completeTick < inst->issueTick) {
+        return 0;
+    }
+
+    const Tick ticks = static_cast<Tick>(inst->completeTick - inst->issueTick);
+    return static_cast<uint64_t>(cpu->ticksToCycles(ticks));
+}
+
+double
+InstructionClassificationProbe::energyPerCycle(
+        Classification classification) const
+{
+    switch (classification) {
+      case Classification::Normal:
+        return normalEnergyPerCycle;
+      case Classification::LongLatency:
+        return longLatencyEnergyPerCycle;
+      case Classification::Expensive:
+        return expensiveEnergyPerCycle;
+    }
+
+    panic("%s saw an unknown instruction classification\n", name());
+}
+
+double
+InstructionClassificationProbe::simSeconds() const
+{
+    return static_cast<double>(curTick()) /
+        static_cast<double>(sim_clock::Frequency);
 }
 
 } // namespace gem5

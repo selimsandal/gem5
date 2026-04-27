@@ -78,11 +78,35 @@ class InstructionClassificationProbe : public SimObject
     {
         struct PerThreadStats : public statistics::Group
         {
-            PerThreadStats(statistics::Group *parent, ThreadID tid);
+            PerThreadStats(statistics::Group *parent, ThreadID tid,
+                           statistics::Value &sim_seconds);
 
             statistics::Scalar totalRetired;
+            statistics::Scalar normalRetired;
             statistics::Scalar longLatencyRetired;
             statistics::Scalar expensiveRetired;
+            statistics::Formula expensiveRetiredPctOfTotal;
+            statistics::Formula expensiveRetiredPctOfOthers;
+
+            statistics::Scalar totalExecutionCycles;
+            statistics::Scalar normalExecutionCycles;
+            statistics::Scalar longLatencyExecutionCycles;
+            statistics::Scalar expensiveExecutionCycles;
+            statistics::Formula otherExecutionCycles;
+            statistics::Formula expensiveExecutionCyclePctOfTotal;
+            statistics::Formula expensiveExecutionCyclePctOfOthers;
+
+            statistics::Scalar totalEstimatedEnergy;
+            statistics::Scalar normalEstimatedEnergy;
+            statistics::Scalar longLatencyEstimatedEnergy;
+            statistics::Scalar expensiveEstimatedEnergy;
+            statistics::Formula otherEstimatedEnergy;
+            statistics::Formula expensiveEstimatedEnergyPctOfTotal;
+            statistics::Formula expensiveEstimatedEnergyPctOfOthers;
+            statistics::Formula totalEstimatedAveragePower;
+            statistics::Formula normalEstimatedAveragePower;
+            statistics::Formula longLatencyEstimatedAveragePower;
+            statistics::Formula expensiveEstimatedAveragePower;
         };
 
         ClassificationStats(InstructionClassificationProbe *parent,
@@ -91,11 +115,15 @@ class InstructionClassificationProbe : public SimObject
         PerThreadStats &thread(ThreadID tid);
 
       private:
+        statistics::Value simSeconds;
         std::vector<std::unique_ptr<PerThreadStats>> threads;
     };
 
     o3::CPU *const cpu;
     const ThreadID numThreads;
+    const double normalEnergyPerCycle;
+    const double longLatencyEnergyPerCycle;
+    const double expensiveEnergyPerCycle;
     std::vector<ProbeListenerPtr<ThreadCommitListener>> commitListeners;
     ClassificationStats stats;
 
@@ -103,6 +131,9 @@ class InstructionClassificationProbe : public SimObject
                       const o3::DynInstPtr &inst);
 
     Classification classify(const o3::DynInstPtr &inst) const;
+    uint64_t executionCycles(const o3::DynInstPtr &inst) const;
+    double energyPerCycle(Classification classification) const;
+    double simSeconds() const;
 };
 
 } // namespace gem5

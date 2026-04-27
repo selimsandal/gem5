@@ -39,3 +39,18 @@ class InstructionClassificationProbe(SimObject):
     cxx_class = "gem5::InstructionClassificationProbe"
 
     cpu = Param.BaseO3CPU("O3 CPU whose commit probe should be observed")
+    normal_energy_per_cycle = Param.Energy(
+        "0pJ",
+        "Estimated energy per attributed execution cycle for normal "
+        "instructions",
+    )
+    long_latency_energy_per_cycle = Param.Energy(
+        "0pJ",
+        "Estimated energy per attributed execution cycle for long-latency "
+        "instructions",
+    )
+    expensive_energy_per_cycle = Param.Energy(
+        "0pJ",
+        "Estimated energy per attributed execution cycle for expensive "
+        "instructions",
+    )
