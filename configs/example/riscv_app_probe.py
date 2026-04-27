@@ -79,8 +79,8 @@ from common.FileSystemConfig import config_filesystem  # noqa: E402
 from ruby import Ruby  # noqa: E402
 
 
-DEFAULT_APP_DIR = "~/Developer/Geekbench-6.7.0-LinuxRISCVPreview"
-DEFAULT_APP_BINARY = "geekbench6"
+DEFAULT_APP_DIR = "/home/selimsandal/Developer/riscv-se-samples/bin"
+DEFAULT_APP_BINARY = "mixed_long_expensive"
 DEFAULT_RISCV_SYSROOT = "/usr/riscv64-linux-gnu"
 RISCV_DYNAMIC_LOADER = "lib/ld-linux-riscv64-lp64d.so.1"
 
