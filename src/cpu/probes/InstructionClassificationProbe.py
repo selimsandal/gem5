@@ -1,4 +1,4 @@
-# Copyright (c) 2022 The Regents of the University of California
+# Copyright (c) 2026 The Regents of the University of California
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -24,30 +24,18 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-Import("*")
+from m5.params import *
+from m5.SimObject import SimObject
 
-SimObject(
-    "PcCountTracker.py",
-    sim_objects=["PcCountTracker", "PcCountTrackerManager"],
-)
-Source("pc_count_tracker.cc")
-Source("pc_count_tracker_manager.cc")
 
-DebugFlag("PcCountTracker")
+class InstructionClassificationProbe(SimObject):
+    """
+    Counts committed O3 instructions by classification category per hardware
+    thread.
+    """
 
-SimObject(
-    "InstTracker.py",
-    sim_objects=["GlobalInstTracker", "LocalInstTracker"],
-)
-Source("inst_tracker.cc")
+    type = "InstructionClassificationProbe"
+    cxx_header = "cpu/probes/instruction_classification_probe.hh"
+    cxx_class = "gem5::InstructionClassificationProbe"
 
-DebugFlag("InstTracker")
-
-if env["CONF"]["BUILD_ISA"]:
-    SimObject(
-        "InstructionClassificationProbe.py",
-        sim_objects=["InstructionClassificationProbe"],
-    )
-    Source("instruction_classification_probe.cc")
-
-    DebugFlag("InstClassification")
+    cpu = Param.BaseO3CPU("O3 CPU whose commit probe should be observed")
