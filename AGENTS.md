@@ -40,7 +40,7 @@ For runtime validation, attach the probe before `m5.instantiate()` and inspect
 ## Geekbench Runtime Setup
 
 The RISC-V Geekbench preview binaries are dynamically linked. Install the
-runtime sysroot with one command:
+runtime sysroot on x86 hosts with one command:
 
 ```bash
 sudo apt install --no-install-recommends libc6-riscv64-cross libgcc-s1-riscv64-cross
@@ -55,7 +55,9 @@ configs/example/run_riscv_geekbench_probe.sh
 The script defaults to `build/RISCV/gem5.opt`, `/usr/riscv64-linux-gnu`,
 `~/Developer/Geekbench-6.7.0-LinuxRISCVPreview`, and
 `~/Developer/geek_results`. Override with `GEM5_BIN`, `RISCV_SYSROOT`,
-`GEEKBENCH_DIR`, `GEEKBENCH_BINARY`, `GEEKBENCH_ARGS`, or `OUTDIR`.
+`GEEKBENCH_DIR`, `GEEKBENCH_BINARY`, `GEEKBENCH_ARGS`, or `OUTDIR`. On native
+RISC-V hosts, the script skips `--interp-dir` and `/lib` redirects and lets
+gem5 SE use the host's native RISC-V loader and libraries.
 
 ## Attribution Semantics
 

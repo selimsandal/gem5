@@ -36,7 +36,8 @@ build/RISCV/gem5.opt -d ~/Developer/geek_results \
 ```
 
 The Geekbench preview binaries are dynamically linked, so a RISC-V sysroot
-containing `/lib/ld-linux-riscv64-lp64d.so.1` is required.
+containing `/lib/ld-linux-riscv64-lp64d.so.1` is required on non-RISC-V hosts.
+On native RISC-V hosts, the host loader and libraries can be used directly.
 
 Install the minimal Ubuntu runtime sysroot with:
 
