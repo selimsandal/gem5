@@ -304,6 +304,15 @@ parser.add_argument(
     default="0pJ",
     help="Probe energy coefficient for expensive instructions.",
 )
+parser.add_argument(
+    "--long-latency-min-cycles",
+    default=1,
+    type=int,
+    help=(
+        "Minimum issue-to-complete cycles for a memory instruction to be "
+        "classified as long-latency."
+    ),
+)
 
 args = parser.parse_args()
 normalize_app_args(args)
@@ -347,6 +356,7 @@ for cpu in system.cpu:
         normal_energy_per_cycle=args.normal_energy_per_cycle,
         long_latency_energy_per_cycle=args.long_latency_energy_per_cycle,
         expensive_energy_per_cycle=args.expensive_energy_per_cycle,
+        long_latency_min_cycles=args.long_latency_min_cycles,
     )
 
 if args.ruby:

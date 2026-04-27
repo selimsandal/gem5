@@ -1,29 +1,29 @@
 # Repository Guidelines
 
-## Scope
+## Project Structure
 
-This branch adds a gem5 SimObject for O3 RISC-V instruction classification and
-attribution. Keep future work focused on
-`src/cpu/probes/InstructionClassificationProbe.py`,
+This branch adds an O3 RISC-V instruction-classification SimObject. Keep probe
+work scoped to `src/cpu/probes/InstructionClassificationProbe.py`,
 `src/cpu/probes/instruction_classification_probe.hh`,
-`src/cpu/probes/instruction_classification_probe.cc`, and the related
-`src/cpu/probes/SConscript` entry. Do not refactor unrelated CPU, stats, or
-power-model code unless the probe cannot work without it.
+`src/cpu/probes/instruction_classification_probe.cc`, and
+`src/cpu/probes/SConscript`. The generic SE-mode config lives in
+`configs/example/riscv_app_probe.py`. Quick local workloads live outside the
+repo at `~/Developer/riscv-se-samples`.
 
-## Component Structure
+## Probe Behavior
 
-The Python SimObject declaration defines the attach point and configurable
-energy coefficients:
+Attach the probe to each O3 CPU before `m5.instantiate()`:
 
 ```python
 InstructionClassificationProbe(cpu=cpu)
 ```
 
-The C++ implementation registers one commit probe listener per hardware thread,
-filters committed architectural instructions, updates per-thread stats, and
-keeps all state on the SimObject instance. The classifier lives in the isolated
-`classify()` function. Preserve that separation when adding policies for
-cache-missing memory ops, divides, or FP square roots.
+The C++ code registers one commit listener per hardware thread, filters
+architectural commits, and updates per-thread stats. Keep classification inside
+`classify()`. Current policy marks divide/square-root op classes as
+`expensive`; memory op classes become `longLatency` when issue-to-complete
+cycles are at least `long_latency_min_cycles` (default 1). Replace that memory
+proxy with true cache-miss metadata when available.
 
 ## Build and Validation Commands
 
@@ -34,67 +34,48 @@ Always build with all local cores:
 - `scons build/RISCV/gem5.opt -j$(nproc)`: full RISC-V link check.
 - `git diff --check`: whitespace and patch hygiene check.
 
-For runtime validation, attach the probe before `m5.instantiate()` and inspect
-`m5out/stats.txt` for `system.cpu.inst_classification.thread0.*`.
+Build sample apps with `make -C ~/Developer/riscv-se-samples -j$(nproc)`.
+Useful binaries are `div_loop` for `expensive`, `long_loads` for `longLatency`,
+and `mixed_long_expensive` for both. Inspect `m5out/stats.txt` for
+`system.cpu.inst_classification.thread0.*`.
 
 ## RISC-V App Runtime Setup
 
-The example config is generic: it can execute any RISC-V SE-mode application,
-with Geekbench kept as the configurable default. Dynamically linked RISC-V apps
-need a runtime sysroot on x86 hosts. Install the minimal packages with:
+The example config runs any RISC-V SE-mode app, with Geekbench as the default.
+Dynamically linked RISC-V apps need a runtime sysroot on x86 hosts:
 
 ```bash
 sudo apt install --no-install-recommends libc6-riscv64-cross libgcc-s1-riscv64-cross
 ```
 
-Run the probe-enabled config directly through gem5:
+Run through gem5 without overriding the output directory:
 
 ```bash
 build/RISCV/gem5.opt configs/example/riscv_app_probe.py
 ```
 
-Do not set a custom output directory by default; let gem5 write to normal
-`m5out`. The config defaults to `/usr/riscv64-linux-gnu` and
-`~/Developer/Geekbench-6.7.0-LinuxRISCVPreview/geekbench6`. Override with
-`--app-dir`, `--app-binary`, `--app-args`, `--app-cwd`, or `--riscv-sysroot`.
-Example:
-
-```bash
-build/RISCV/gem5.opt configs/example/riscv_app_probe.py \
-    --app-binary /path/to/riscv/app \
-    --app-args "--help"
-```
-
-You can also pass gem5 SE options directly:
-
-```bash
-build/RISCV/gem5.opt configs/example/riscv_app_probe.py \
-    --cmd /path/to/riscv/app \
-    --options "arg1 arg2"
-```
-
-On native RISC-V hosts, the config skips `--interp-dir` and `/lib` redirects
-and lets gem5 SE use the host's native RISC-V loader and libraries.
+Override the default app with `--app-dir`, `--app-binary`, `--app-args`,
+`--app-cwd`, or `--riscv-sysroot`. You can also pass gem5 SE options directly
+with `--cmd` and `--options`. On native RISC-V hosts, the config skips loader
+redirects and lets SE mode use native RISC-V libraries.
 
 ## Attribution Semantics
 
-Instruction counts are retired-instruction counts from the O3 commit probe.
-Execution cycles are attributed from each instruction's issue-to-complete
-timestamps. Estimated energy and average power are derived from configured
-per-cycle energy coefficients, not from gem5's aggregate CPU power model.
-Document this distinction in any user-facing changes.
+Instruction counts are retired instructions from the O3 commit probe. Execution
+cycles use issue-to-complete timestamps. Estimated energy and average power come
+from configured per-cycle energy coefficients, not gem5's aggregate CPU power
+model. Document that distinction in user-facing changes.
 
 ## Coding Style
 
 Follow nearby gem5 C++ style: modern `gem5` namespace layout, `PARAMS(...)`,
-`ADD_STAT`, and `ProbeListenerArgBase`. Use concise names matching existing
-stats: `expensiveExecutionCycles`, `expensiveEstimatedEnergyPctOfTotal`, etc.
-Python params use `snake_case`; generated stats use descriptive camelCase.
+`ADD_STAT`, and `ProbeListenerArgBase`. Use stat names like
+`expensiveExecutionCycles` and `expensiveEstimatedEnergyPctOfTotal`. Python
+params use `snake_case`; generated stats use descriptive camelCase.
 
 ## Commit and PR Notes
 
-Use component-tagged commit headers such as
-`cpu: Add instruction attribution stats`. Include the build commands run and
-note that long/expensive remain zero while the classifier stub returns normal.
-Keep unrelated local changes, especially `SConstruct`, out of commits unless
+Use component-tagged commit headers such as `cpu: Add instruction attribution
+stats`. Include build commands and sample binaries used for validation. Keep
+unrelated local changes, especially `SConstruct`, out of commits unless
 explicitly requested.

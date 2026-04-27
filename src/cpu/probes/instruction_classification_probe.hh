@@ -124,13 +124,15 @@ class InstructionClassificationProbe : public SimObject
     const double normalEnergyPerCycle;
     const double longLatencyEnergyPerCycle;
     const double expensiveEnergyPerCycle;
+    const Cycles longLatencyMinCycles;
     std::vector<ProbeListenerPtr<ThreadCommitListener>> commitListeners;
     ClassificationStats stats;
 
     void handleCommit(ThreadID tid, bool &observed,
                       const o3::DynInstPtr &inst);
 
-    Classification classify(const o3::DynInstPtr &inst) const;
+    Classification classify(const o3::DynInstPtr &inst,
+                            uint64_t execution_cycles) const;
     uint64_t executionCycles(const o3::DynInstPtr &inst) const;
     double energyPerCycle(Classification classification) const;
     double simSeconds() const;

@@ -30,6 +30,7 @@
 
 #include "base/cprintf.hh"
 #include "base/logging.hh"
+#include "cpu/op_class.hh"
 #include "cpu/o3/dyn_inst.hh"
 #include "cpu/o3/limits.hh"
 #include "debug/InstClassification.hh"
@@ -190,6 +191,7 @@ InstructionClassificationProbe::InstructionClassificationProbe(
       normalEnergyPerCycle(params.normal_energy_per_cycle),
       longLatencyEnergyPerCycle(params.long_latency_energy_per_cycle),
       expensiveEnergyPerCycle(params.expensive_energy_per_cycle),
+      longLatencyMinCycles(params.long_latency_min_cycles),
       stats(this, numThreads)
 {
     fatal_if(cpu == nullptr, "%s requires a BaseO3CPU\n", name());
@@ -239,8 +241,8 @@ InstructionClassificationProbe::handleCommit(
 
     auto &thread_stats = stats.thread(tid);
 
-    const Classification classification = classify(inst);
     const uint64_t cycles = executionCycles(inst);
+    const Classification classification = classify(inst, cycles);
     const double energy = static_cast<double>(cycles) *
         energyPerCycle(classification);
 
@@ -268,14 +270,45 @@ InstructionClassificationProbe::handleCommit(
 }
 
 InstructionClassificationProbe::Classification
-InstructionClassificationProbe::classify(const o3::DynInstPtr &inst) const
+InstructionClassificationProbe::classify(
+        const o3::DynInstPtr &inst, uint64_t execution_cycles) const
 {
-    (void)inst;
-    /*
-     * TODO: Fill in the policy. Reasonable future categories are
-     * cache-missing memory ops (long latency) and integer/FP divides and
-     * FP square roots (expensive).
-     */
+    switch (inst->opClass()) {
+      case IntDivOp:
+      case FloatDivOp:
+      case FloatSqrtOp:
+      case SimdDivOp:
+      case SimdSqrtOp:
+      case SimdFloatDivOp:
+      case SimdFloatSqrtOp:
+        return Classification::Expensive;
+      case MemReadOp:
+      case MemWriteOp:
+      case FloatMemReadOp:
+      case FloatMemWriteOp:
+      case SimdUnitStrideLoadOp:
+      case SimdUnitStrideStoreOp:
+      case SimdUnitStrideMaskLoadOp:
+      case SimdUnitStrideMaskStoreOp:
+      case SimdStridedLoadOp:
+      case SimdStridedStoreOp:
+      case SimdIndexedLoadOp:
+      case SimdIndexedStoreOp:
+      case SimdWholeRegisterLoadOp:
+      case SimdWholeRegisterStoreOp:
+      case SimdUnitStrideFaultOnlyFirstLoadOp:
+      case SimdUnitStrideSegmentedLoadOp:
+      case SimdUnitStrideSegmentedStoreOp:
+      case SimdUnitStrideSegmentedFaultOnlyFirstLoadOp:
+      case SimdStrideSegmentedLoadOp:
+      case SimdStrideSegmentedStoreOp:
+        if (execution_cycles >= longLatencyMinCycles)
+            return Classification::LongLatency;
+        break;
+      default:
+        break;
+    }
+
     return Classification::Normal;
 }
 

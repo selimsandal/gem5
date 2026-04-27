@@ -54,3 +54,8 @@ class InstructionClassificationProbe(SimObject):
         "Estimated energy per attributed execution cycle for expensive "
         "instructions",
     )
+    long_latency_min_cycles = Param.Cycles(
+        1,
+        "Minimum issue-to-complete cycles for a memory instruction to be "
+        "classified as long-latency",
+    )
