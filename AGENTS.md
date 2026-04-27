@@ -37,6 +37,26 @@ Always build with all local cores:
 For runtime validation, attach the probe before `m5.instantiate()` and inspect
 `m5out/stats.txt` for `system.cpu.inst_classification.thread0.*`.
 
+## Geekbench Runtime Setup
+
+The RISC-V Geekbench preview binaries are dynamically linked. Install the
+runtime sysroot with one command:
+
+```bash
+sudo apt install --no-install-recommends libc6-riscv64-cross libgcc-s1-riscv64-cross
+```
+
+Run the probe-enabled config through:
+
+```bash
+configs/example/run_riscv_geekbench_probe.sh
+```
+
+The script defaults to `build/RISCV/gem5.opt`, `/usr/riscv64-linux-gnu`,
+`~/Developer/Geekbench-6.7.0-LinuxRISCVPreview`, and
+`~/Developer/geek_results`. Override with `GEM5_BIN`, `RISCV_SYSROOT`,
+`GEEKBENCH_DIR`, `GEEKBENCH_BINARY`, `GEEKBENCH_ARGS`, or `OUTDIR`.
+
 ## Attribution Semantics
 
 Instruction counts are retired-instruction counts from the O3 commit probe.
