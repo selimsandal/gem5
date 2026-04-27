@@ -37,27 +37,44 @@ Always build with all local cores:
 For runtime validation, attach the probe before `m5.instantiate()` and inspect
 `m5out/stats.txt` for `system.cpu.inst_classification.thread0.*`.
 
-## Geekbench Runtime Setup
+## RISC-V App Runtime Setup
 
-The RISC-V Geekbench preview binaries are dynamically linked. Install the
-runtime sysroot on x86 hosts with one command:
+The example config is generic: it can execute any RISC-V SE-mode application,
+with Geekbench kept as the configurable default. Dynamically linked RISC-V apps
+need a runtime sysroot on x86 hosts. Install the minimal packages with:
 
 ```bash
 sudo apt install --no-install-recommends libc6-riscv64-cross libgcc-s1-riscv64-cross
 ```
 
-Run the probe-enabled config through:
+Run the probe-enabled config directly through gem5:
 
 ```bash
-configs/example/run_riscv_geekbench_probe.sh
+build/RISCV/gem5.opt configs/example/riscv_app_probe.py
 ```
 
-The script defaults to `build/RISCV/gem5.opt`, `/usr/riscv64-linux-gnu`,
-`~/Developer/Geekbench-6.7.0-LinuxRISCVPreview`, and
-`~/Developer/geek_results`. Override with `GEM5_BIN`, `RISCV_SYSROOT`,
-`GEEKBENCH_DIR`, `GEEKBENCH_BINARY`, `GEEKBENCH_ARGS`, or `OUTDIR`. On native
-RISC-V hosts, the script skips `--interp-dir` and `/lib` redirects and lets
-gem5 SE use the host's native RISC-V loader and libraries.
+Do not set a custom output directory by default; let gem5 write to normal
+`m5out`. The config defaults to `/usr/riscv64-linux-gnu` and
+`~/Developer/Geekbench-6.7.0-LinuxRISCVPreview/geekbench6`. Override with
+`--app-dir`, `--app-binary`, `--app-args`, `--app-cwd`, or `--riscv-sysroot`.
+Example:
+
+```bash
+build/RISCV/gem5.opt configs/example/riscv_app_probe.py \
+    --app-binary /path/to/riscv/app \
+    --app-args "--help"
+```
+
+You can also pass gem5 SE options directly:
+
+```bash
+build/RISCV/gem5.opt configs/example/riscv_app_probe.py \
+    --cmd /path/to/riscv/app \
+    --options "arg1 arg2"
+```
+
+On native RISC-V hosts, the config skips `--interp-dir` and `/lib` redirects
+and lets gem5 SE use the host's native RISC-V loader and libraries.
 
 ## Attribution Semantics
 

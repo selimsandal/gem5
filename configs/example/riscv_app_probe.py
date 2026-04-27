@@ -24,20 +24,26 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-"""Run RISC-V Geekbench in SE mode with instruction-classification stats.
+"""Run a RISC-V SE-mode app with instruction-classification stats.
 
 Example:
 
 ```
-build/RISCV/gem5.opt -d ~/Developer/geek_results \
-    configs/example/riscv_geekbench_probe.py \
-    --interp-dir /path/to/riscv/sysroot \
-    --chroot /path/to/riscv/sysroot
+build/RISCV/gem5.opt configs/example/riscv_app_probe.py \
+    --cmd /path/to/riscv/app \
+    --options "app arguments"
 ```
 
-The Geekbench preview binaries are dynamically linked, so a RISC-V sysroot
-containing `/lib/ld-linux-riscv64-lp64d.so.1` is required on non-RISC-V hosts.
-On native RISC-V hosts, the host loader and libraries can be used directly.
+If `--cmd` is omitted, this config runs the local Geekbench preview by
+default:
+
+```
+build/RISCV/gem5.opt configs/example/riscv_app_probe.py
+```
+
+Some RISC-V applications are dynamically linked. On non-RISC-V hosts, those
+apps use `--riscv-sysroot`, which defaults to `/usr/riscv64-linux-gnu`. On
+native RISC-V hosts, the host loader and libraries are used directly.
 
 Install the minimal Ubuntu runtime sysroot with:
 
@@ -48,6 +54,9 @@ sudo apt install --no-install-recommends libc6-riscv64-cross libgcc-s1-riscv64-c
 
 import argparse
 import os
+import platform
+import shlex
+import subprocess
 import sys
 
 import m5
@@ -70,30 +79,131 @@ from common.FileSystemConfig import config_filesystem  # noqa: E402
 from ruby import Ruby  # noqa: E402
 
 
-DEFAULT_GEEKBENCH_DIR = (
-    "/home/selimsandal/Developer/Geekbench-6.7.0-LinuxRISCVPreview"
-)
+DEFAULT_APP_DIR = "~/Developer/Geekbench-6.7.0-LinuxRISCVPreview"
+DEFAULT_APP_BINARY = "geekbench6"
+DEFAULT_RISCV_SYSROOT = "/usr/riscv64-linux-gnu"
+RISCV_DYNAMIC_LOADER = "lib/ld-linux-riscv64-lp64d.so.1"
+
+
+def expand_path(path):
+    return os.path.abspath(os.path.expanduser(path))
+
+
+def is_native_riscv_host():
+    return platform.machine().startswith("riscv64")
+
+
+def binary_has_interpreter(binary):
+    try:
+        result = subprocess.run(
+            ["readelf", "-l", binary],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except FileNotFoundError:
+        return None
+
+    return "Requesting program interpreter" in result.stdout
+
+
+def normalize_app_args(args):
+    args.app_dir = args.app_dir or args.geekbench_dir or DEFAULT_APP_DIR
+    args.app_binary = (
+        args.app_binary or args.geekbench_binary or DEFAULT_APP_BINARY
+    )
+
+    if args.app_args is None:
+        args.app_args = args.geekbench_args or ""
+
+
+def resolve_binary(args):
+    if args.cmd:
+        return expand_path(args.cmd)
+
+    app_binary = os.path.expanduser(args.app_binary)
+    if os.path.isabs(app_binary):
+        return expand_path(app_binary)
+
+    return expand_path(os.path.join(args.app_dir, app_binary))
+
+
+def resolve_cwd(args, binary):
+    if args.app_cwd:
+        return expand_path(args.app_cwd)
+
+    app_binary = os.path.expanduser(args.app_binary)
+    if args.cmd or os.path.isabs(app_binary):
+        return os.path.dirname(binary)
+
+    return expand_path(args.app_dir)
+
+
+def wants_riscv_sysroot(args, binary):
+    use_sysroot = args.use_riscv_sysroot.lower()
+    if use_sysroot in ("1", "true", "yes"):
+        return True
+    if use_sysroot in ("0", "false", "no"):
+        return False
+    if use_sysroot != "auto":
+        fatal(
+            "Invalid --use-riscv-sysroot=%s. Use auto, 1, or 0.",
+            args.use_riscv_sysroot,
+        )
+
+    if is_native_riscv_host():
+        return False
+
+    has_interpreter = binary_has_interpreter(binary)
+    if has_interpreter is False:
+        return False
+
+    return True
+
+
+def configure_runtime_paths(args, binary):
+    if not wants_riscv_sysroot(args, binary):
+        return
+
+    sysroot = expand_path(args.riscv_sysroot)
+    loader = os.path.join(sysroot, RISCV_DYNAMIC_LOADER)
+    if not os.path.exists(loader):
+        fatal(
+            "RISC-V dynamic loader not found: %s. Install the runtime "
+            "sysroot or pass --use-riscv-sysroot=0 for a static binary.",
+            loader,
+        )
+
+    if args.interp_dir is None:
+        args.interp_dir = sysroot
+
+    lib_redirect = f"/lib={os.path.join(sysroot, 'lib')}"
+    has_lib_redirect = any(
+        redirect.startswith("/lib=") for redirect in args.redirects
+    )
+    if not has_lib_redirect:
+        args.redirects.append(lib_redirect)
 
 
 def build_process(args):
-    binary = args.cmd
-    if not binary:
-        binary = os.path.join(args.geekbench_dir, args.geekbench_binary)
+    binary = resolve_binary(args)
+    cwd = resolve_cwd(args, binary)
 
-    binary = os.path.abspath(os.path.expanduser(binary))
-    geekbench_dir = os.path.abspath(os.path.expanduser(args.geekbench_dir))
+    if not os.path.exists(binary):
+        fatal("Application binary not found: %s", binary)
 
     process = Process(pid=100)
     process.executable = binary
-    process.cwd = geekbench_dir
+    process.cwd = cwd
     process.gid = os.getgid()
 
     if args.env:
         with open(args.env) as f:
             process.env = [line.rstrip() for line in f]
 
-    workload_args = args.options or args.geekbench_args
-    process.cmd = [binary] + workload_args.split()
+    workload_args = args.options or args.app_args
+    process.cmd = [binary] + shlex.split(workload_args)
 
     if args.input:
         process.input = args.input
@@ -120,20 +230,64 @@ parser.set_defaults(
 )
 
 parser.add_argument(
+    "--app-dir",
+    default=None,
+    help=(
+        "Directory containing the default RISC-V application. Used when "
+        "--cmd is not set."
+    ),
+)
+parser.add_argument(
+    "--app-binary",
+    default=None,
+    help=(
+        "RISC-V application binary to execute when --cmd is not set. "
+        "Relative paths are resolved under --app-dir."
+    ),
+)
+parser.add_argument(
+    "--app-args",
+    default=None,
+    help="Arguments passed to --app-binary when --options is not set.",
+)
+parser.add_argument(
+    "--app-cwd",
+    default=None,
+    help=(
+        "Process working directory. Defaults to --app-dir, or to the "
+        "binary directory when --cmd is set."
+    ),
+)
+parser.add_argument(
+    "--riscv-sysroot",
+    default=DEFAULT_RISCV_SYSROOT,
+    help=(
+        "RISC-V runtime sysroot used for dynamically linked apps on "
+        "non-RISC-V hosts."
+    ),
+)
+parser.add_argument(
+    "--use-riscv-sysroot",
+    default="auto",
+    help=(
+        "Use --riscv-sysroot defaults: auto, 1, or 0. Auto skips the "
+        "sysroot on native RISC-V hosts and for static binaries."
+    ),
+)
+parser.add_argument(
     "--geekbench-dir",
-    default=DEFAULT_GEEKBENCH_DIR,
-    help="Directory containing the Geekbench RISC-V preview files.",
+    default=None,
+    help="Legacy alias for --app-dir.",
 )
 parser.add_argument(
     "--geekbench-binary",
-    default="geekbench6",
-    choices=["geekbench6", "geekbench_riscv64", "geekbench_rv64gcv"],
-    help="Geekbench binary to execute when --cmd is not set.",
+    default=None,
+    help="Legacy alias for --app-binary.",
 )
 parser.add_argument(
     "--geekbench-args",
-    default="",
-    help="Arguments passed to Geekbench when --options is not set.",
+    default=None,
+    help="Legacy alias for --app-args.",
 )
 parser.add_argument(
     "--normal-energy-per-cycle",
@@ -152,6 +306,8 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
+normalize_app_args(args)
+configure_runtime_paths(args, resolve_binary(args))
 
 CPUClass, test_mem_mode, FutureClass = Simulation.setCPUClass(args)
 CPUClass.numThreads = 1
