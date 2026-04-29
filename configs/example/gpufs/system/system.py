@@ -117,6 +117,8 @@ def makeGpuFSSystem(args):
         dispatcher_exit_events = True
     if args.exit_after_gpu_kernel > -1:
         dispatcher_exit_events = True
+    if args.dump_reset_on_gpu_kernel:
+        dispatcher_exit_events = True
     dispatcher = GPUDispatcher(kernel_exit_events=dispatcher_exit_events)
     cp_pt_walker = VegaPagetableWalker()
     target_kernel = args.skip_until_gpu_kernel

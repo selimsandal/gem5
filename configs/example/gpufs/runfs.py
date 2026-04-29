@@ -165,6 +165,14 @@ def addRunFSOptions(parser):
     )
 
     parser.add_argument(
+        "--dump-reset-on-gpu-kernel",
+        default=False,
+        action="store_true",
+        help="Dump and reset gem5 stats whenever a GPU kernel or blit kernel "
+        "completes.",
+    )
+
+    parser.add_argument(
         "--skip-until-gpu-kernel",
         type=int,
         default=0,
@@ -292,12 +300,20 @@ def runGpuFSSystem(args):
             m5.checkpoint(args.checkpoint_dir)
             break
         elif "GPU Kernel Completed" in exit_event.getCause():
+            if args.dump_reset_on_gpu_kernel:
+                print(f"Dumping stats after GPU kernel {kernels_completed}")
+                m5.stats.dump()
+                m5.stats.reset()
             if kernels_completed == args.exit_after_gpu_kernel:
                 print(f"Exiting after GPU kernel {kernels_completed}")
                 break
             kernels_completed += 1
             tasks_completed += 1
         elif "GPU Blit Kernel Completed" in exit_event.getCause():
+            if args.dump_reset_on_gpu_kernel:
+                print(f"Dumping stats after GPU task {tasks_completed}")
+                m5.stats.dump()
+                m5.stats.reset()
             tasks_completed += 1
         elif "Skipping GPU Kernel" in exit_event.getCause():
             print(f"Skipping GPU kernel {kernels_completed}")

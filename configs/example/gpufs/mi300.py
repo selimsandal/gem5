@@ -174,7 +174,8 @@ def runMI300GPUFS(
     # See: https://rocm.docs.amd.com/en/latest/conceptual/gpu-arch/mi300.html
     # Topology for one XCD. Number of CUs is approximately 304 / 8, rounded
     # up to 40 due to gem5 restriction of 4 CUs per SQC / scalar cache.
-    args.num_compute_units = 40
+    if "-u" not in sys.argv and "--num-compute-units" not in sys.argv:
+        args.num_compute_units = 40
     args.gpu_topology = "Crossbar"
 
     # Run gem5
