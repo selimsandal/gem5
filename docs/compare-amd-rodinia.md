@@ -26,6 +26,8 @@ The comparison branch includes:
   `--num-compute-units=...`, instead of forcing the MI300 default
 - `util/amd_rodinia_stats.py`: maps serial `KERNEL`/`RESULT` lines to gem5
   per-kernel stats sections and summarizes CU cycles per benchmark result
+- `util/amd_rodinia_opencl/`: the OpenCL Rodinia comparison harness and its
+  checked-in v24-0-compatible binary
 
 The first pushed comparison commit is:
 
@@ -138,10 +140,13 @@ commands above is preferred for clean reproduction.
 
 ## OpenCL Harness
 
-The AMD OpenCL harness lives in the GPU repo:
+The AMD OpenCL harness is checked into this gem5 branch so the AMD comparison
+does not depend on the local GPU superrepo:
 
 ```text
-/home/selimsandal/Developer/gpu/Source/Host/Tests/RodiniaAmd/amd_rodinia_opencl
+util/amd_rodinia_opencl/amd_rodinia_opencl.cpp
+util/amd_rodinia_opencl/Makefile
+util/amd_rodinia_opencl/amd_rodinia_opencl
 ```
 
 Build it with the v24-0 GPUFS container, not `latest`. The latest container
@@ -151,11 +156,11 @@ causes guest load failures such as `GLIBC_2.38 not found`.
 ```sh
 docker pull ghcr.io/gem5/gpu-fs:v24-0
 docker run --rm -u "$(id -u):$(id -g)" \
-  -v /home/selimsandal/Developer/gpu:/home/selimsandal/Developer/gpu \
-  -w /home/selimsandal/Developer/gpu/Source/Host/Tests/RodiniaAmd \
+  -v /home/selimsandal/Developer/gem5:/home/selimsandal/Developer/gem5 \
+  -w /home/selimsandal/Developer/gem5/util/amd_rodinia_opencl \
   ghcr.io/gem5/gpu-fs:v24-0 make clean all
 
-objdump -T /home/selimsandal/Developer/gpu/Source/Host/Tests/RodiniaAmd/amd_rodinia_opencl \
+objdump -T util/amd_rodinia_opencl/amd_rodinia_opencl \
   | grep -o 'GLIBC_[0-9.]*' | sort -Vu | tail
 ```
 
@@ -265,7 +270,7 @@ cd /home/selimsandal/Developer/gem5
 export GEM5_RES=/home/selimsandal/Developer/gem5-resources
 export GPUFS=$GEM5_RES/src/x86-ubuntu-gpu-ml
 export GPUFS_MI300_DISK=$GPUFS/disk-image/x86-ubuntu-gpu-ml-v24-mi300
-export AMD_RODINIA=/home/selimsandal/Developer/gpu/Source/Host/Tests/RodiniaAmd/amd_rodinia_opencl
+export AMD_RODINIA=/home/selimsandal/Developer/gem5/util/amd_rodinia_opencl/amd_rodinia_opencl
 
 export COMMON_GPUFS_ARGS="\
 --disk-image $GPUFS/disk-image/x86-ubuntu-gpu-ml \
