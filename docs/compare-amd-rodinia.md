@@ -1,12 +1,14 @@
 # AMD GPUFS Rodinia Comparison
 
-This note documents the reproducible path for comparing the local FPGA
+This note documents the reproducible path for comparing our local FPGA GPU
 Rodinia runs against gem5's AMD GPU full-system model on branch
-`compare-amd`.
+`compare-amd`. In the tables below, "our GPU" refers to the local FPGA GPU
+results used as the baseline.
 
-The FPGA table being matched is in
-`/home/selimsandal/Developer/gpu/External/paper/main.tex`. Do not edit the
-paper while collecting these runs.
+The baseline values were taken from the FPGA table in
+`/home/selimsandal/Developer/gpu/External/paper/main.tex`. This gem5 branch is
+the reproducible run log for the AMD comparison; update the paper from this
+log after accepting the runs.
 
 ## Branch And Build
 
@@ -179,21 +181,21 @@ num_compute_units * simds_per_cu * wf_size / issue_period
 ```
 
 This is a throughput normalization, not an identical physical-lane match to
-the FPGA. In this gem5 AMD model, `wf_size=64` means each vector instruction is
+our GPU. In this gem5 AMD model, `wf_size=64` means each vector instruction is
 a 64-work-item AMD wavefront instruction. With `issue_period=4`, one SIMD
 issues that 64-lane wavefront instruction over four shader cycles on average,
 or `64 / 4 = 16` scalar lane-ops per cycle. With `simds_per_cu=2`, the CU
 therefore has an average peak issue rate of `2 * 16 = 32` scalar lane-ops per
 cycle.
 
-The FPGA design's "32 execution cores" are treated here as 32 scalar work-item
-slots available per cycle across its compute engines. The AMD configuration is
+Our GPU's "32 execution cores" are treated here as 32 scalar work-item slots
+available per cycle across its compute engines. The AMD configuration is
 therefore comparable for peak scalar throughput at the same 100 MHz clock, but
 it is not the same microarchitecture:
 
 - The AMD model still executes and schedules wave64 work, so launch granularity,
   occupancy, barriers, and memory coalescing follow AMD wavefront behavior.
-- The FPGA has its own physical engine/lane structure and dispatch granularity.
+- Our GPU has its own physical engine/lane structure and dispatch granularity.
 - The comparison should be described as "32 lane-op/cycle throughput-matched",
   not "the same 32 physical cores".
 
@@ -235,7 +237,7 @@ Both should show `clock: [10000]`, because gem5 uses a 1 THz tick and
 
 ## Workloads
 
-Validation-size set matching the FPGA table:
+Validation-size set matching the local FPGA GPU table:
 
 ```text
 hotspot3D       32x32x8 cells
@@ -250,7 +252,7 @@ bfs             16 nodes
 streamcluster   16 points
 ```
 
-Larger timing set matching the FPGA table:
+Larger timing set matching the local FPGA GPU table:
 
 ```text
 hotspot3D       128x128x8 cells
@@ -557,14 +559,30 @@ python3 util/amd_rodinia_stats.py \
 
 All `all-quick` and `all-perf` `RESULT` lines are `PASS`.
 
-## MI200 Comparison Against FPGA Table
+## MI300X Status
 
-The FPGA values below are the `GPU ms` values already present in
+The MI300X/gfx942 lane-matched runs are complete and valid for comparison
+against our GPU:
+
+- Correctness: `all-quick` and `all-perf` `RESULT` lines are all `PASS`.
+- Accepted run directories:
+  `m5out/compare-amd-rodinia-mi300-all-quick-100mhz-lane32` and
+  `m5out/compare-amd-rodinia-mi300-all-perf-100mhz-lane32`.
+- Config verification: one gem5 `ComputeUnit`, `num_SIMDs=2`,
+  `issue_period=4`, and `wf_size=64`.
+- Throughput match: `1 * 2 * 64 / 4 = 32 lane-ops/cycle`.
+- Clock: `100 MHz` for system, Ruby, and GPU TLB clock domains.
+- Timing metric: gem5 `system.cpu1.CUs.totalCycles`, converted with
+  `gpu_ms = cycles / 100000.0`; OpenCL `event_ms` is not used.
+
+## MI200 Comparison Against Our GPU
+
+The "our GPU" values below are the `GPU ms` values already present in
 `/home/selimsandal/Developer/gpu/External/paper/main.tex`. The AMD MI200
-values are from gem5 `CUs.totalCycles` at 100 MHz. `MI200/FPGA` below 1.0
-means the AMD gem5 model reported fewer GPU milliseconds than the FPGA run.
+values are from gem5 `CUs.totalCycles` at 100 MHz. `MI200/Our GPU` below 1.0
+means the AMD gem5 model reported fewer GPU milliseconds than our GPU run.
 
-| Benchmark | Workload | FPGA GPU ms | MI200 GPU ms | MI200/FPGA |
+| Benchmark | Workload | Our GPU ms | MI200 GPU ms | MI200/Our GPU |
 |---|---:|---:|---:|---:|
 | hotspot3D | 32x32x8 | 4.101 | 2.853390 | 0.696 |
 | hotspot3D | 128x128x8 | 65.325 | 45.078820 | 0.690 |
@@ -583,13 +601,15 @@ means the AMD gem5 model reported fewer GPU milliseconds than the FPGA run.
 | streamcluster | 16 points | 0.039 | 0.061770 | 1.584 |
 | streamcluster | 1024 points | 1.289 | 1.958560 | 1.520 |
 
-## MI300X Comparison Against FPGA Table
+## MI300X Comparison Against Our GPU
 
 The MI300X rows use the same 32 lane-op/cycle throughput match and 100 MHz
 clock options. They differ from the MI200 rows only by the gem5 board script,
 ROM/IP-discovery resources, and the MI300X GPU identity seen by the guest.
+`MI300X/Our GPU` below 1.0 means the MI300X run reported fewer GPU
+milliseconds than our GPU run.
 
-| Benchmark | Workload | FPGA GPU ms | MI300X GPU ms | MI300X/FPGA |
+| Benchmark | Workload | Our GPU ms | MI300X GPU ms | MI300X/Our GPU |
 |---|---:|---:|---:|---:|
 | hotspot3D | 32x32x8 | 4.101 | 2.508950 | 0.612 |
 | hotspot3D | 128x128x8 | 65.325 | 39.729260 | 0.608 |
