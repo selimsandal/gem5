@@ -114,6 +114,30 @@ num_compute_units * simds_per_cu * wf_size / issue_period
 = 32
 ```
 
+This is a throughput normalization, not an identical physical-lane match to
+the FPGA. In this gem5 AMD model, `wf_size=64` means each vector instruction is
+a 64-work-item AMD wavefront instruction. With `issue_period=4`, one SIMD
+issues that 64-lane wavefront instruction over four shader cycles on average,
+or `64 / 4 = 16` scalar lane-ops per cycle. With `simds_per_cu=2`, the CU
+therefore has an average peak issue rate of `2 * 16 = 32` scalar lane-ops per
+cycle.
+
+The FPGA design's "32 execution cores" are treated here as 32 scalar work-item
+slots available per cycle across its compute engines. The AMD configuration is
+therefore comparable for peak scalar throughput at the same 100 MHz clock, but
+it is not the same microarchitecture:
+
+- The AMD model still executes and schedules wave64 work, so launch granularity,
+  occupancy, barriers, and memory coalescing follow AMD wavefront behavior.
+- The FPGA has its own physical engine/lane structure and dispatch granularity.
+- The comparison should be described as "32 lane-op/cycle throughput-matched",
+  not "the same 32 physical cores".
+
+Changing `wf_size` to 32 would make the wavefront width look closer to a
+32-lane machine, but it would no longer match the normal gfx90a/ROCm wave64
+execution model used by this GPUFS setup. For the current comparison, keep
+`wf_size=64` and use `issue_period`/`simds_per_cu` to normalize throughput.
+
 Use these gem5 options:
 
 ```text
